@@ -1,8 +1,4 @@
-# generate_text.py
-
-import numpy as np
 import pickle
-from src.tokenizer import Tokenizer
 from src.model import Transformer
 from src.inference import generate_text
 
@@ -13,11 +9,11 @@ def main():
     
     # Model parametreleri
     vocab_size = tokenizer.vocab_size
-    embed_size = 128
-    num_layers = 2
-    heads = 4
-    forward_expansion = 4
-    max_length = 500  # Positional encoding için max_length artırıldı
+    embed_size=2048,
+    num_layers=80,
+    heads=32,
+    forward_expansion=4,
+    max_length=500
     seq_length = 50
     
     # Modeli oluşturma ve parametreleri yükleme

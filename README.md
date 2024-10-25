@@ -1,4 +1,4 @@
-# Basit Transformer Dil Modeli
+# Basit Transformer Dil Modeli((8B)
 
 Bu proje, sıfırdan bir Transformer tabanlı dil modeli oluşturmayı ve eğitmeyi amaçlamaktadır. Model, Türkçe metinler üzerinde eğitim alır ve metin üretimi yapabilir.
 

@@ -5,105 +5,135 @@ from src.tokenizer import Tokenizer
 from src.model import Transformer, CrossEntropyLoss, Adam
 from src.utils import load_and_preprocess
 from tqdm import tqdm
+import gc
 
-def get_batches(tokens, batch_size, seq_length):
-    tokens = np.array(tokens)
-    num_batches = len(tokens) // (batch_size * seq_length)
-    tokens = tokens[:num_batches * batch_size * seq_length]
-    tokens = tokens.reshape((batch_size, -1))
-    for i in range(0, tokens.shape[1] - seq_length, seq_length):
-        x = tokens[:, i:i+seq_length]
-        y = tokens[:, i+1:i+seq_length+1]
-        yield x, y
+class BatchGenerator:
+    def __init__(self, tokens, batch_size, seq_length):
+        self.tokens = tokens
+        self.batch_size = batch_size
+        self.seq_length = seq_length
+        
+    def __iter__(self):
+        tokens = np.array(self.tokens)
+        num_batches = len(tokens) // (self.batch_size * self.seq_length)
+        tokens = tokens[:num_batches * self.batch_size * self.seq_length]
+        tokens = tokens.reshape((self.batch_size, -1))
+        
+        for i in range(0, tokens.shape[1] - self.seq_length, self.seq_length):
+            x = tokens[:, i:i+self.seq_length]
+            y = tokens[:, i+1:i+self.seq_length+1]
+            yield x, y
 
 def main():
     # Veri dizinini belirtin
     data_directory = 'data'
     
     # Tüm .txt dosyalarının yollarını al
-    file_paths = [os.path.join(data_directory, file) for file in os.listdir(data_directory) if file.endswith('.txt')]
+    file_paths = [os.path.join(data_directory, file) 
+                 for file in os.listdir(data_directory) 
+                 if file.endswith('.txt')]
     
+    print("Dosyalar yükleniyor ve ön işleniyor...")
     clean_text = load_and_preprocess(file_paths)
     
-    tokenizer = Tokenizer(vocab_size=30000)  # Kelime dağarcığını artırdık
+    print(f"İşlenen veri boyutu: {len(clean_text)} karakter")
+    print(f"Bellek kullanımı: {get_memory_usage():.2f} MB")
+    
+    tokenizer = Tokenizer(vocab_size=30000)
+    print("Vocabulary oluşturuluyor...")
     tokenizer.build_vocab(clean_text)
+    
+    print("Metin tokenize ediliyor...")
     tokens = tokenizer.encode(clean_text)
     
-    # Tokenizer'ı kaydetme
+    # Bellek optimizasyonu için clean_text'i sil
+    del clean_text
+    gc.collect()
+    
+    print(f"Tokenization sonrası bellek: {get_memory_usage():.2f} MB")
+    
+    # Tokenizer'ı kaydet
     with open('tokenizer.pkl', 'wb') as f:
         pickle.dump(tokenizer, f)
     
-    # Tokenizer'daki <UNK> oranını kontrol et
+    # <UNK> oranını kontrol et
     unk_count = tokens.count(tokenizer.word_to_id['<UNK>'])
     total_tokens = len(tokens)
     print(f"<UNK> oranı: {unk_count / total_tokens * 100:.2f}%")
     
     # Model parametreleri
-    vocab_size = 30000
-    embed_size = 128
-    num_layers = 2
-    heads = 4
-    forward_expansion = 4
-    max_length = 500  # Positional encoding için max_length artırıldı
-    
-    # Transformer modelini başlatma
     model = Transformer(
-        vocab_size=vocab_size,
-        embed_size=embed_size,
-        num_layers=num_layers,
-        heads=heads,
-        forward_expansion=forward_expansion,
-        max_length=max_length
-    )
+    vocab_size=30000,
+    embed_size=2048,
+    num_layers=80,
+    heads=32,
+    forward_expansion=4,
+    max_length=500
+)
+
     
     # Eğitim parametreleri
-    batch_size = 32
-    seq_length = 50
+    batch_size = 64
+    seq_length = 40
     epochs = 10
-    learning_rate = 0.001
     
-    # Kayıp fonksiyonu ve optimizer
+    # Loss ve optimizer
     loss_fn = CrossEntropyLoss()
-    
-    # Modeldeki tüm öğrenilebilir parametreleri alıyoruz
     parameters = model.get_parameters()
-    optimizer = Adam(parameters=parameters, lr=learning_rate)
+    optimizer = Adam(parameters=parameters, lr=0.002)
     
     # Eğitim döngüsü
     for epoch in range(epochs):
-        batch_generator = get_batches(tokens, batch_size, seq_length)
+        print(f"\nEpoch {epoch+1}/{epochs} başlıyor...")
         epoch_loss = 0
         correct_predictions = 0
         total_predictions = 0
-        for x, y in tqdm(batch_generator, desc=f"Epoch {epoch+1}/{epochs}"):
-            logits = model.forward(x)  # (batch_size, seq_len, vocab_size)
-            loss = loss_fn.forward(logits, y)  # Scalar
+        
+        batch_generator = BatchGenerator(tokens, batch_size, seq_length)
+        
+        for x, y in tqdm(batch_generator, desc=f"Epoch {epoch+1}"):
+            # Forward pass
+            logits = model.forward(x)
+            loss = loss_fn.forward(logits, y)
             epoch_loss += loss
-                
+            
             # Doğruluk hesaplama
             predictions = np.argmax(logits, axis=-1)
             correct_predictions += np.sum(predictions == y)
             total_predictions += y.size
-                
-            # Geri yayılım
-            grad_logits = loss_fn.backward()  # (batch_size, seq_len, vocab_size)
+            
+            # Backward pass
+            grad_logits = loss_fn.backward()
             model.backward(grad_logits)
-                
+            
             # Parametreleri güncelle
             grads = model.get_gradients()
             optimizer.step(grads)
             
-            # Modelin gradyanlarını sıfırla
+            # Gradyanları sıfırla
             model.zero_grad()
-                
+            
+            # Düzenli bellek temizliği
+            if total_predictions % (batch_size * seq_length * 100) == 0:
+                gc.collect()
+        
+        # Epoch istatistiklerini yazdır
         avg_loss = epoch_loss / (len(tokens) // (batch_size * seq_length))
         accuracy = correct_predictions / total_predictions * 100
         print(f"Epoch {epoch+1} Loss: {avg_loss:.4f}, Accuracy: {accuracy:.2f}%")
-    
-    # Modeli kaydetme
-    model.save_model('model_weights.npy')
+        print(f"Bellek kullanımı: {get_memory_usage():.2f} MB")
+        
+        # Her epoch sonunda modeli kaydet
+        model.save_model(f'model_weights_epoch_{epoch+1}.npy')
     
     print("Model eğitimi tamamlandı ve kaydedildi.")
-    
+
+def get_memory_usage():
+    """Mevcut işlemin bellek kullanımını MB cinsinden döndürür"""
+    import psutil
+    process = psutil.Process(os.getpid())
+    return process.memory_info().rss / 1024 / 1024
+
 if __name__ == "__main__":
     main()
+

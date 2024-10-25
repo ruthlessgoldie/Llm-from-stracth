@@ -2,7 +2,7 @@ import os
 import pickle
 import numpy as np
 from src.tokenizer import Tokenizer
-from src.model import Transformer, CrossEntropyLoss, Adam, save_model
+from src.model import Transformer, CrossEntropyLoss, Adam
 from src.utils import load_and_preprocess
 from tqdm import tqdm
 

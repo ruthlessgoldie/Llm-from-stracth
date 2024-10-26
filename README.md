@@ -7,7 +7,6 @@ Bu proje, sıfırdan bir Transformer tabanlı dil modeli oluşturmayı ve eğitm
 - [Kurulum](#kurulum)
 - [Kullanım](#kullanım)
 - [Proje Yapısı](#proje-yapısı)
-- [Örnek Çıktı](#örnek-çıktı)
 - [Katkıda Bulunma](#katkıda-bulunma)
 - [Lisans](#lisans)
 
@@ -63,9 +62,7 @@ Bu proje, sıfırdan bir Transformer tabanlı dil modeli oluşturmayı ve eğitm
   generate_text.py: Eğitilen modelin yüklenmesi ve metin üretimi.
   README.md: Projenin açıklaması ve kullanım talimatları.
 
-## **Örnek Çıktı**
-  Seed Text: "Merhaba, nasılsın?"
-  Generated Text: "Merhaba, nasılsın? bugün hava gerçekten güzel. arkadaşlarla parkta buluşup sohbet edeceğiz..."
+
 ## **Katkıda Bulunma**
   Katkıda bulunmak isterseniz, lütfen bir pull request oluşturun veya bir issue açın.
 ## **Lisans**
